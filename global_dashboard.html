@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全球期貨 多時框技術分析看板</title>
+<style>
+/* ===== 紅漲綠跌 色彩系統 ===== */
+:root{
+  --bg:#0b0f1a;
+  --card:#141929;
+  --border:rgba(255,255,255,.06);
+  --text:#e8ecf1;
+  --text2:#8892a4;
+  --text3:#4a5270;
+  --bull:#ff4444;          /* 多 - 紅 */
+  --bull-bg:#3d1520;
+  --bull-dim:#cc3333;
+  --bear:#4cff88;          /* 空 - 綠 */
+  --bear-bg:#0f3a20;
+  --bear-dim:#33cc66;
+  --flat:#666680;
+  --flat-bg:#22263e;
+  --accent:#448aff;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);
+  font-family:-apple-system,'Segoe UI','Microsoft JhengHei',system-ui,sans-serif;
+  min-height:100vh}
+
+/* ===== Header ===== */
+.header{display:flex;justify-content:space-between;align-items:center;
+  padding:.8rem 1.5rem;background:rgba(14,18,30,.95);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100}
+.title{font-size:1.3rem;font-weight:800;letter-spacing:2px;
+  background:linear-gradient(135deg,#ff6b6b,#ffa500);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hdr-r{display:flex;align-items:center;gap:1.2rem}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--bull);
+  display:inline-block;animation:pulse 2s ease infinite}
+.dot.loading{background:#ffc107;animation:pulse .5s ease infinite}
+.dot.err{background:var(--bear);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.hdr-info{font-size:.8rem;color:var(--text2)}
+.hdr-cd{font-size:.8rem;color:var(--text3);min-width:2.8em;text-align:right;
+  font-variant-numeric:tabular-nums}
+.btn{background:rgba(68,138,255,.12);border:1px solid rgba(68,138,255,.3);
+  color:#448aff;padding:.3rem .8rem;border-radius:6px;cursor:pointer;
+  font-size:.8rem;transition:all .2s}
+.btn:hover{background:rgba(68,138,255,.25)}
+.legend{font-size:.7rem;color:var(--text3);display:flex;gap:.8rem;align-items:center}
+.leg-bull{color:var(--bull)}
+.leg-bear{color:var(--bear)}
+
+/* ===== Grid ===== */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);
+  gap:clamp(.6rem,1vw,1.2rem);padding:clamp(.6rem,1vw,1.2rem);
+  max-width:2600px;margin:0 auto}
+@media(min-width:1500px){.grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:2200px){.grid{grid-template-columns:repeat(4,1fr)}}
+
+/* ===== Card ===== */
+.inst{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  overflow:hidden;opacity:0;transform:translateY(12px);
+  animation:fadeUp .4s ease forwards}
+@keyframes fadeUp{to{opacity:1;transform:translateY(0)}}
+
+.inst-head{display:flex;justify-content:space-between;align-items:center;
+  padding:.55rem .8rem;border-bottom:1px solid rgba(255,255,255,.04);
+  background:rgba(255,255,255,.02)}
+.inst-name{font-size:.95rem;font-weight:700}
+.inst-sub{font-size:.68rem;color:var(--text3);margin-left:.4rem;font-weight:400}
+.inst-price{font-size:.95rem;font-weight:700;font-variant-numeric:tabular-nums;
+  text-align:right}
+.inst-price.bull{color:var(--bull)}
+.inst-price.bear{color:var(--bear)}
+.inst-chg{font-size:.72rem;font-weight:600;margin-left:.3rem}
+
+/* ===== Signal Table ===== */
+.stbl{width:100%;border-collapse:collapse;font-size:.78rem;table-layout:fixed}
+.stbl th{background:#1a1f35;color:var(--text3);font-weight:600;
+  padding:4px 2px;text-align:center;font-size:.68rem;letter-spacing:.3px;
+  border-bottom:1px solid var(--border)}
+.stbl th:first-child{text-align:left;padding-left:8px;width:42px}
+.stbl td{text-align:center;padding:4px 2px;
+  border-bottom:1px solid rgba(255,255,255,.02);
+  font-variant-numeric:tabular-nums;transition:background .3s}
+.stbl td:first-child{text-align:left;padding-left:8px;font-weight:600;
+  color:var(--text2);font-size:.72rem}
+
+/* Cell states */
+.stbl td.bull{background:var(--bull-bg);color:var(--bull);font-weight:700}
+.stbl td.bear{background:var(--bear-bg);color:var(--bear);font-weight:700}
+.stbl td.flat{background:var(--flat-bg);color:var(--flat)}
+.stbl td.na{color:var(--text3);font-size:.7rem}
+
+/* Score column */
+.stbl td.sc-bull{background:var(--bull-bg);color:var(--bull);font-weight:800}
+.stbl td.sc-bear{background:var(--bear-bg);color:var(--bear);font-weight:800}
+.stbl td.sc-flat{background:var(--flat-bg);color:var(--flat);font-weight:700}
+
+/* Summary column */
+.stbl td.sum-bull{background:var(--bull-bg);color:var(--bull);font-weight:800;
+  letter-spacing:1px}
+.stbl td.sum-bear{background:var(--bear-bg);color:var(--bear);font-weight:800;
+  letter-spacing:1px}
+.stbl td.sum-flat{background:var(--flat-bg);color:#aab;font-weight:600}
+
+/* Flash */
+@keyframes flashR{0%{box-shadow:inset 0 0 30px rgba(255,68,68,.2)}100%{box-shadow:none}}
+@keyframes flashG{0%{box-shadow:inset 0 0 30px rgba(76,255,136,.2)}100%{box-shadow:none}}
+.inst.flash-bull{animation:flashR .8s ease-out}
+.inst.flash-bear{animation:flashG .8s ease-out}
+
+/* ===== Footer ===== */
+.footer{text-align:center;padding:.8rem;color:var(--text3);font-size:.68rem}
+.footer kbd{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:3px;
+  font-family:inherit;font-size:.65rem}
+
+/* ===== Loader ===== */
+.loader{position:fixed;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;background:var(--bg);z-index:999;
+  transition:opacity .4s}
+.loader.hide{opacity:0;pointer-events:none}
+.spinner{width:40px;height:40px;border:3px solid var(--text3);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-text{margin-top:1rem;color:var(--text2);font-size:.9rem}
+</style>
+</head>
+<body>
+
+<div class="loader" id="loader">
+  <div class="spinner"></div>
+  <div class="loader-text">正在計算全球報價與指標 ...</div>
+</div>
+
+<div class="header">
+  <div class="title">全球期貨 多時框技術分析看板</div>
+  <div class="hdr-r">
+    <div class="legend">
+      <span class="leg-bull">&#9632; 紅=漲/多</span>
+      <span class="leg-bear">&#9632; 綠=跌/空</span>
+    </div>
+    <span class="dot loading" id="dot"></span>
+    <span class="hdr-info" id="info">載入中 ...</span>
+    <span class="hdr-cd" id="cd"></span>
+    <button class="btn" onclick="doRefresh()">&#x27F3; 更新</button>
+  </div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<div class="footer">
+  資料來源: Yahoo Finance &nbsp;|&nbsp;
+  每 5 分鐘堆疊更新 &nbsp;|&nbsp;
+  紅漲綠跌 &nbsp;|&nbsp;
+  按 <kbd>F11</kbd> 全螢幕
+</div>
+
+<script>
+/* ===== Config ===== */
+const POLL_SEC = 60;
+let countdown = POLL_SEC;
+let firstLoad = true;
+let prevPrices = {};
+
+const TF = ['5分','10分','30分','60分','日','週','月'];
+const IND = ['本根','KD','MA','VWAP','MC','SAR','ST'];
+
+/* ===== Helpers ===== */
+function fmt(n, d) {
+  if (n == null || isNaN(n)) return '\u2014';
+  return Number(n).toLocaleString('en-US', {
+    minimumFractionDigits: d, maximumFractionDigits: d
+  });
+}
+
+/* ===== Create card DOM ===== */
+function createCard(inst, idx) {
+  const el = document.createElement('div');
+  el.id = 'inst-' + inst.id;
+  el.className = 'inst';
+  el.style.animationDelay = (idx * 0.04) + 's';
+
+  /* Header */
+  const hd = document.createElement('div');
+  hd.className = 'inst-head';
+  hd.innerHTML =
+    '<div><span class="inst-name">' + inst.name + '</span>' +
+    '<span class="inst-sub">' + (inst.sub||inst.symbol) + '</span></div>' +
+    '<div class="inst-price" id="pr-' + inst.id + '">\u2014</div>';
+  el.appendChild(hd);
+
+  /* Table */
+  const tbl = document.createElement('table');
+  tbl.className = 'stbl';
+
+  const thead = document.createElement('thead');
+  let hrow = '<tr><th>時框</th>';
+  IND.forEach(k => { hrow += '<th>' + k + '</th>'; });
+  hrow += '<th>分數</th><th>總結</th></tr>';
+  thead.innerHTML = hrow;
+  tbl.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  TF.forEach(tf => {
+    const tr = document.createElement('tr');
+    let cells = '<td>' + tf + '</td>';
+    IND.forEach(k => {
+      cells += '<td class="na" id="s_' + inst.id + '_' + tf + '_' + k + '">\u2014</td>';
+    });
+    cells += '<td class="na" id="s_' + inst.id + '_' + tf + '_sc">\u2014</td>';
+    cells += '<td class="na" id="s_' + inst.id + '_' + tf + '_sm">\u2014</td>';
+    tr.innerHTML = cells;
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+  el.appendChild(tbl);
+  return el;
+}
+
+/* ===== Update card ===== */
+function updateCard(inst) {
+  let card = document.getElementById('inst-' + inst.id);
+  const grid = document.getElementById('grid');
+  if (!card) {
+    card = createCard(inst, grid.children.length);
+    grid.appendChild(card);
+  }
+
+  /* Price */
+  const prEl = document.getElementById('pr-' + inst.id);
+  if (inst.price != null) {
+    const d = inst.decimals || 0;
+    const sign = inst.change > 0 ? '+' : '';
+    const dir = inst.change > 0.0001 ? 'bull' : inst.change < -0.0001 ? 'bear' : '';
+    const arrow = inst.change > 0 ? '\u25B2' : inst.change < 0 ? '\u25BC' : '';
+    const unit = inst.unit || '';
+    prEl.className = 'inst-price ' + dir;
+    prEl.innerHTML = fmt(inst.price, d) + unit +
+      ' <span class="inst-chg">' + arrow + ' ' + sign + fmt(inst.change, d) +
+      ' (' + sign + fmt(inst.changePct, 2) + '%)</span>';
+
+    /* Flash on price change */
+    const prev = prevPrices[inst.id];
+    if (prev != null && prev !== inst.price) {
+      const fc = inst.price > prev ? 'flash-bull' : 'flash-bear';
+      card.classList.remove('flash-bull','flash-bear');
+      void card.offsetWidth;
+      card.classList.add(fc);
+    }
+    prevPrices[inst.id] = inst.price;
+  }
+
+  /* Signals */
+  if (!inst.timeframes) return;
+  inst.timeframes.forEach(tf => {
+    IND.forEach(key => {
+      const cell = document.getElementById('s_' + inst.id + '_' + tf.name + '_' + key);
+      if (!cell) return;
+      if (!tf.signals) {
+        cell.textContent = 'N/A';
+        cell.className = 'na';
+        return;
+      }
+      const v = tf.signals[key];
+      if (key === '本根') {
+        if (v === 1)       { cell.textContent = '\u25B2'; cell.className = 'bull'; }
+        else if (v === -1) { cell.textContent = '\u25BC'; cell.className = 'bear'; }
+        else               { cell.textContent = '\u00B7'; cell.className = 'flat'; }
+      } else {
+        if (v === 1)       { cell.textContent = '多'; cell.className = 'bull'; }
+        else if (v === -1) { cell.textContent = '空'; cell.className = 'bear'; }
+        else               { cell.textContent = '\u2013'; cell.className = 'flat'; }
+      }
+    });
+
+    /* Score */
+    const scEl = document.getElementById('s_' + inst.id + '_' + tf.name + '_sc');
+    if (scEl) {
+      if (tf.score == null) {
+        scEl.textContent = 'N/A'; scEl.className = 'na';
+      } else {
+        scEl.textContent = (tf.score > 0 ? '+' : '') + tf.score;
+        scEl.className = tf.score > 0 ? 'sc-bull' : tf.score < 0 ? 'sc-bear' : 'sc-flat';
+      }
+    }
+
+    /* Summary */
+    const smEl = document.getElementById('s_' + inst.id + '_' + tf.name + '_sm');
+    if (smEl) {
+      smEl.textContent = tf.summary || 'N/A';
+      if (tf.summary === '偏多')      smEl.className = 'sum-bull';
+      else if (tf.summary === '偏空') smEl.className = 'sum-bear';
+      else if (tf.summary === '中性') smEl.className = 'sum-flat';
+      else                             smEl.className = 'na';
+    }
+  });
+}
+
+/* ===== Fetch data ===== */
+async function fetchData() {
+  const dot = document.getElementById('dot');
+  dot.className = 'dot loading';
+  try {
+    const r = await fetch('/api/data');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    d.instruments.forEach(updateCard);
+
+    dot.className = 'dot';
+    const info = document.getElementById('info');
+    info.textContent = '更新 ' + (d.lastUpdate || new Date().toLocaleTimeString());
+    if (d.computeSec) info.textContent += ' (' + d.computeSec + 's)';
+
+    if (firstLoad) {
+      firstLoad = false;
+      const ld = document.getElementById('loader');
+      ld.classList.add('hide');
+      setTimeout(() => ld.remove(), 500);
+    }
+  } catch (e) {
+    dot.className = 'dot err';
+    document.getElementById('info').textContent = '連線失敗';
+    console.error(e);
+  }
+  countdown = POLL_SEC;
+}
+
+function doRefresh() {
+  fetch('/api/refresh').catch(() => {});
+  countdown = 5;
+}
+
+/* ===== Init ===== */
+fetchData();
+setInterval(() => {
+  countdown--;
+  const cdEl = document.getElementById('cd');
+  if (countdown > 0) {
+    cdEl.textContent = countdown + 's';
+  } else {
+    cdEl.textContent = '...';
+    fetchData();
+  }
+}, 1000);
+</script>
+</body>
+</html>
